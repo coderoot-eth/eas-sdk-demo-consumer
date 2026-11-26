@@ -11,6 +11,6 @@
     "build": "node index.js"
   },
   "dependencies": {
-    "@coderoot-eth/eas-sdk-demo": "2.10.0-demo.1"
+    "@coderoot-eth/eas-sdk-demo": "2.10.0-demo.2"
   }
 }
