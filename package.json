@@ -1,0 +1,16 @@
+{
+  "name": "eas-sdk-demo-consumer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A project that depends on @coderoot-eth/eas-sdk-demo and checks its dependencies against CodeRoot before it builds.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node index.js"
+  },
+  "dependencies": {
+    "@coderoot-eth/eas-sdk-demo": "2.10.0-demo.2"
+  }
+}

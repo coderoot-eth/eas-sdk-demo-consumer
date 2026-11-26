@@ -1,0 +1,73 @@
+# Checks the dependencies against CodeRoot before anything is installed or built. The SDK must read
+# verified for the exact bytes the lockfile pins; every other dependency fails the build only when
+# its bytes are revoked or do not match. Run it by hand with a version to check that version
+# without changing the lockfile.
+
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version of @coderoot-eth/eas-sdk-demo to pin for this run, e.g. 2.10.0-demo.1. Empty: the lockfile's."
+        required: false
+        default: ""
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      PACKAGE: "@coderoot-eth/eas-sdk-demo"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: ""
+      - name: Pin the requested version
+        if: inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          npm pkg set "dependencies.$PACKAGE=$VERSION"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Read the SDK from the lockfile
+        id: sdk
+        run: |
+          set -euo pipefail
+          entry="$(jq -c --arg p "node_modules/$PACKAGE" '.packages[$p]' package-lock.json)"
+          version="$(jq -r '.version' <<<"$entry")"
+          integrity="$(jq -r '.integrity' <<<"$entry")"
+          case "$integrity" in sha512-*) ;; *) echo "::error::$PACKAGE has no sha512 integrity in the lockfile"; exit 1 ;; esac
+          hex="$(printf '%s' "${integrity#sha512-}" | base64 -d | od -An -v -tx1 | tr -d ' \n')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "hash=sha512:$hex" >> "$GITHUB_OUTPUT"
+          echo "$PACKAGE $version pinned at sha512:$hex"
+      - name: CodeRoot verify the SDK
+        id: verify
+        uses: coderoot-eth/action@4367129c8915b9f6733044cb02d5a5adf8e301b3 # v1.2.0
+        with:
+          mode: verify
+          hash: ${{ steps.sdk.outputs.hash }}
+          fail-open: "false"
+          fail-on: unregistered
+      - name: CodeRoot check every dependency
+        uses: coderoot-eth/action@4367129c8915b9f6733044cb02d5a5adf8e301b3 # v1.2.0
+        with:
+          mode: check
+          lockfile: package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build
+        run: npm run build
